@@ -239,9 +239,14 @@ spec:
           oc delete job network-perf-test -n default --ignore-not-found=true 2>/dev/null || true
           oc delete serviceaccount network-perf-test -n default --ignore-not-found=true 2>/dev/null || true
           oc delete configmap network-perf-test-daemonset-template -n default --ignore-not-found=true 2>/dev/null || true
+          oc delete configmap report-generator-scripts -n default --ignore-not-found=true 2>/dev/null || true
 
           echo "  Deleting dynamically created DaemonSet..."
           oc delete daemonset network-perf-test-worker -n default --ignore-not-found=true 2>/dev/null || true
+
+          echo "  Deleting web service and route..."
+          oc delete service network-perf-report -n default --ignore-not-found=true 2>/dev/null || true
+          oc delete route network-perf-report -n default --ignore-not-found=true 2>/dev/null || true
 
           echo "  Deleting ClusterRole and ClusterRoleBinding..."
           oc delete clusterrole network-perf-test --ignore-not-found=true 2>/dev/null || true
