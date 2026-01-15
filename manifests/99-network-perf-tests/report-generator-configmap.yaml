@@ -1437,15 +1437,15 @@ data:
                 </div>
                 <div class="legend-item">
                     <div style="width: 40px; height: 3px; background: #00c853; margin-right: 10px;"></div>
-                    <span>Individual NIC (Sequential) - High bandwidth (>80 Gb/s)</span>
+                    <span>Individual NIC (Sequential) - Excellent (≥90% of NIC speed)</span>
                 </div>
                 <div class="legend-item">
                     <div style="width: 40px; height: 3px; background: #ffd600; margin-right: 10px;"></div>
-                    <span>Individual NIC (Sequential) - Medium bandwidth (40-80 Gb/s)</span>
+                    <span>Individual NIC (Sequential) - Good (70-90% of NIC speed)</span>
                 </div>
                 <div class="legend-item">
                     <div style="width: 40px; height: 3px; background: #ff1744; margin-right: 10px;"></div>
-                    <span>Individual NIC (Sequential) - Low bandwidth (<40 Gb/s)</span>
+                    <span>Individual NIC (Sequential) - Needs Investigation (<70% of NIC speed)</span>
                 </div>
                 <div class="legend-item">
                     <div style="width: 40px; height: 3px; background: #ff9800; border-top: 3px dashed #ff9800; margin-right: 10px;"></div>
@@ -1491,6 +1491,33 @@ data:
                 }} catch (e) {{
                     return `<strong>Total Bandwidth:</strong> ${{total.toFixed(2)}} Gb/s`;
                 }}
+            }}
+
+            function calculateUtilization(bandwidth, nicSpeed) {{
+                if (!nicSpeed || nicSpeed === 'Unknown' || bandwidth === 0) {{
+                    return null;
+                }}
+
+                const match = nicSpeed.match(/(\\d+)Mb\\/s/);
+                if (match) {{
+                    const nicSpeedGbps = parseInt(match[1]) / 1000;
+                    const utilization = (bandwidth / nicSpeedGbps) * 100;
+                    return utilization.toFixed(1);
+                }}
+                return null;
+            }}
+
+            function formatUtilization(bandwidth, nicSpeed) {{
+                const util = calculateUtilization(bandwidth, nicSpeed);
+                if (util === null) return '';
+
+                let color = '#ff1744';  // Red
+                if (util >= 90) color = '#00c853';  // Green
+                else if (util >= 70) color = '#ffd600';  // Yellow
+
+                return `<div style="margin-top: 5px; padding: 5px; background: ${{color}}22; border-left: 3px solid ${{color}};">
+                    <strong>Utilization:</strong> ${{util}}% of NIC capability
+                </div>`;
             }}
 
             // Server rack icon with WHITE background
@@ -1571,7 +1598,29 @@ data:
                         style: {{
                             'width': 'mapData(bandwidth, 0, 100, 2, 8)',
                             'line-color': ele => {{
+                                // Calculate percentage of NIC capability
                                 const bw = ele.data('bandwidth');
+                                const nicSpeed = ele.data('nic_speed');
+
+                                if (!nicSpeed || nicSpeed === 'Unknown') {{
+                                    // Fallback to absolute values if NIC speed unknown
+                                    if (bw > 80) return '#00c853';
+                                    if (bw > 40) return '#ffd600';
+                                    return '#ff1744';
+                                }}
+
+                                // Parse NIC speed (e.g., "100000Mb/s" -> 100 Gb/s)
+                                const match = nicSpeed.match(/(\\d+)Mb\\/s/);
+                                if (match) {{
+                                    const nicSpeedGbps = parseInt(match[1]) / 1000;
+                                    const utilization = (bw / nicSpeedGbps) * 100;
+
+                                    if (utilization >= 90) return '#00c853';  // Green: 90-100%
+                                    if (utilization >= 70) return '#ffd600';  // Yellow: 70-90%
+                                    return '#ff1744';  // Red: <70%
+                                }}
+
+                                // Fallback
                                 if (bw > 80) return '#00c853';
                                 if (bw > 40) return '#ffd600';
                                 return '#ff1744';
@@ -1697,6 +1746,7 @@ data:
                         </h4>
                         <div class="info-item" style="background: #e3f2fd; border-left: 4px solid #2196f3;">
                             <strong>Bandwidth:</strong> ${{data.tcp_seq.toFixed(2)}} Gb/s
+                            ${{formatUtilization(data.tcp_seq, data.nic_speed)}}
                         </div>
 
                         <h4 style="margin-top: 15px; color: #667eea;">
@@ -1704,6 +1754,7 @@ data:
                         </h4>
                         <div class="info-item" style="background: #f3e5f5; border-left: 4px solid #9c27b0;">
                             <strong>Bandwidth:</strong> ${{data.roce_seq.toFixed(2)}} Gb/s
+                            ${{formatUtilization(data.roce_seq, data.nic_speed)}}
                         </div>
 
                         <h4 style="margin-top: 15px; color: #667eea;">
@@ -1711,6 +1762,7 @@ data:
                         </h4>
                         <div class="info-item" style="background: #e8f5e9; border-left: 4px solid #4caf50;">
                             <strong>Bandwidth:</strong> ${{data.cuda_seq.toFixed(2)}} Gb/s
+                            ${{formatUtilization(data.cuda_seq, data.nic_speed)}}
                         </div>
                     `;
                 }} else {{
