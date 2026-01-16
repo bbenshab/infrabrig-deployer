@@ -2043,33 +2043,39 @@ data:
             }}
 
             function exportHTML() {{
-                // Hide info panel before exporting to avoid blocking the view
-                const infoPanel = document.getElementById('info-panel');
-                const wasPanelVisible = infoPanel.classList.contains('visible');
-                const originalDisplay = infoPanel.style.display;
+                // Clone the entire document
+                const docClone = document.documentElement.cloneNode(true);
 
-                // Force hide with inline style (overrides everything)
-                infoPanel.classList.remove('visible');
-                infoPanel.style.display = 'none';
+                // Find the #cy container in the clone and reset it to empty state
+                const cyClone = docClone.querySelector('#cy');
+                if (cyClone) {{
+                    // Remove all Cytoscape-generated content (canvas elements, etc.)
+                    cyClone.innerHTML = '';
+                    // Remove Cytoscape classes
+                    cyClone.className = '';
+                }}
 
-                // Small delay to ensure DOM is updated
-                setTimeout(() => {{
-                    // Get the complete HTML document
-                    const htmlContent = document.documentElement.outerHTML;
-                    const blob = new Blob([htmlContent], {{type: 'text/html'}});
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = 'network-topology-complete.html';
-                    link.click();
-                    URL.revokeObjectURL(url);
-
-                    // Restore panel state
-                    if (wasPanelVisible) {{
-                        infoPanel.classList.add('visible');
+                // Hide info panel in the clone
+                const infoPanelClone = docClone.querySelector('#info-panel');
+                if (infoPanelClone) {{
+                    infoPanelClone.classList.remove('visible');
+                    infoPanelClone.style.display = 'none';
+                    // Also clear its content
+                    const infoContentClone = infoPanelClone.querySelector('#info-content');
+                    if (infoContentClone) {{
+                        infoContentClone.innerHTML = '';
                     }}
-                    infoPanel.style.display = originalDisplay;
-                }}, 100);
+                }}
+
+                // Get the cleaned HTML
+                const htmlContent = '<!DOCTYPE html>\\n' + docClone.outerHTML;
+                const blob = new Blob([htmlContent], {{type: 'text/html'}});
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'network-topology-complete.html';
+                link.click();
+                URL.revokeObjectURL(url);
             }}
 
             cy.ready(function() {{
