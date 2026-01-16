@@ -486,10 +486,10 @@ spec:
               EXEC_PID=$!
               sleep 2  # Give oc exec time to start
 
-              # Wait for tests to complete (90 seconds + 10 second buffer)
-              echo "  Waiting for RoCE tests to complete (90s)..."
-              sleep 95
+              # Wait for tests to complete
+              echo "  Waiting for RoCE tests to complete..."
               wait $EXEC_PID 2>/dev/null || true
+              echo "  RoCE tests finished."
 
               # Collect results
               for NIC in "${VALID_NICS[@]}"; do
@@ -580,10 +580,10 @@ spec:
               GPU_EXEC_PID=$!
               sleep 2  # Give oc exec time to start
 
-              # Wait for tests to complete (90 seconds + 10 second buffer)
-              echo "  Waiting for RoCE+CUDA tests to complete (90s)..."
-              sleep 95
+              # Wait for tests to complete
+              echo "  Waiting for RoCE+CUDA tests to complete..."
               wait $GPU_EXEC_PID 2>/dev/null || true
+              echo "  RoCE+CUDA tests finished."
 
               # Collect results
               for NIC in "${VALID_NICS[@]}"; do
@@ -819,10 +819,10 @@ spec:
               TCP_EXEC_PID=$!
               sleep 2  # Give oc exec time to start
 
-              # Wait for tests to complete (90 seconds + 10 second buffer)
-              echo "  Waiting for iperf3 tests to complete (90s)..."
-              sleep 95
+              # Wait for tests to complete
+              echo "  Waiting for iperf3 tests to complete..."
               wait $TCP_EXEC_PID 2>/dev/null || true
+              echo "  iperf3 tests finished."
 
               # Collect parallel results
               for NIC in "${TCP_VALID_NICS[@]}"; do
