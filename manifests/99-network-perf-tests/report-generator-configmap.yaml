@@ -460,11 +460,7 @@ data:
     
                 {generate_hardware_specs(hw)}
 
-                {generate_rdma_table(rdma_results, rdma_agg, worker1, worker2, nics)}
-    
-                {generate_tcp_table(tcp_results, tcp_agg, worker1, worker2, nics)}
-    
-                {generate_nccl_table(nccl_results)}
+                {generate_worker_results(worker1, worker2, nics, rdma_results, tcp_results, nccl_results, rdma_agg, tcp_agg)}
     
                 {generate_command_reference()}
             </div>
@@ -869,8 +865,158 @@ data:
                         Seq = Sequential (one NIC) | Par = Parallel (all NICs) | RoCE+CUDA = GPUDirect RDMA
                     </p>
                 </div>"""
-    
-    
+
+
+    def generate_worker_results(worker1, worker2, nics, rdma_results, tcp_results, nccl_results, rdma_agg, tcp_agg):
+        """Generate per-worker performance results"""
+
+        def get_worker_nccl(worker):
+            """Get NCCL results for a specific worker"""
+            worker_nccl = [r for r in nccl_results if r['pod'] == worker]
+            if not worker_nccl:
+                return ""
+
+            rows = ""
+            for result in worker_nccl:
+                rows += f"""
+                                <tr>
+                                    <td>{result['test']}</td>
+                                    <td>{result['size']}</td>
+                                    <td><span class="metric metric-high">{result['bandwidth']:.2f} GB/s</span></td>
+                                    <td><span class="status-pass">✓ {result['status']}</span></td>
+                                </tr>"""
+
+            return f"""
+                    <h3 style="margin-top: 25px; color: #667eea;">🔄 NCCL Performance (Local GPU)</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Test</th>
+                                <th>Peak Size</th>
+                                <th>Peak Bandwidth</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+    {rows}
+                        </tbody>
+                    </table>"""
+
+        def generate_worker_section(worker, is_source):
+            """Generate performance section for one worker"""
+            other_worker = worker2 if is_source else worker1
+            direction = f"{worker} → {other_worker}"
+
+            # RDMA Performance
+            rdma_rows = ""
+            for nic in nics:
+                roce_seq = get_rdma_by_nic(rdma_results, nic, 'RoCE_seq') if is_source else 0
+                roce_par = get_rdma_by_nic(rdma_results, nic, 'RoCE_par') if is_source else 0
+                cuda_seq = get_rdma_by_nic(rdma_results, nic, 'RoCE_CUDA_seq') if is_source else 0
+                cuda_par = get_rdma_by_nic(rdma_results, nic, 'RoCE_CUDA_par') if is_source else 0
+
+                if roce_seq > 0 or roce_par > 0:
+                    rdma_rows += f"""
+                                <tr>
+                                    <td><strong>{nic}</strong></td>
+                                    <td>100G</td>
+                                    <td><span class="metric {get_metric_class(roce_seq, 80, 50)}">{roce_seq:.2f} Gb/s</span></td>
+                                    <td><span class="metric {get_metric_class(roce_par, 80, 50)}">{roce_par:.2f} Gb/s</span></td>
+                                    <td><span class="metric {get_metric_class(cuda_seq, 80, 50)}">{cuda_seq:.2f} Gb/s</span></td>
+                                    <td><span class="metric {get_metric_class(cuda_par, 80, 50)}">{cuda_par:.2f} Gb/s</span></td>
+                                </tr>"""
+
+            # Add aggregate row for source
+            if is_source and rdma_rows:
+                rdma_rows += f"""
+                                <tr style="background:#f0f0ff; font-weight:bold;">
+                                    <td colspan="2" style="text-align:center;">Aggregate:</td>
+                                    <td><span class="metric metric-high">{rdma_agg['RoCE_seq']:.2f} Gb/s</span></td>
+                                    <td><span class="metric metric-medium">{rdma_agg['RoCE_par']:.2f} Gb/s</span></td>
+                                    <td><span class="metric metric-high">{rdma_agg['RoCE_CUDA_seq']:.2f} Gb/s</span></td>
+                                    <td><span class="metric metric-medium">{rdma_agg['RoCE_CUDA_par']:.2f} Gb/s</span></td>
+                                </tr>"""
+
+            rdma_table = f"""
+                    <h3 style="margin-top: 25px; color: #667eea;">⚡ RDMA Performance (RoCE)</h3>
+                    <p style="color: #666; font-size: 0.9em; margin-bottom: 10px;">Direction: {direction}</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>NIC</th>
+                                <th>Link</th>
+                                <th>RoCE Sequential</th>
+                                <th>RoCE Parallel</th>
+                                <th>RoCE+CUDA Seq</th>
+                                <th>RoCE+CUDA Par</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+    {rdma_rows}
+                        </tbody>
+                    </table>
+                    <p style="margin-top:10px; color:#666; font-size:0.85em">
+                        Sequential = one NIC at a time | Parallel = all NICs simultaneously | RoCE+CUDA = GPUDirect RDMA
+                    </p>""" if rdma_rows else ""
+
+            # TCP Performance
+            tcp_rows = ""
+            for nic in nics:
+                tcp_result = get_tcp_by_nic(tcp_results, nic) if is_source else {'tcp_seq': 0, 'tcp_par': 0}
+                tcp_seq = tcp_result.get('tcp_seq', 0)
+                tcp_par = tcp_result.get('tcp_par', 0)
+
+                if tcp_seq > 0 or tcp_par > 0:
+                    tcp_rows += f"""
+                                <tr>
+                                    <td><strong>{nic}</strong></td>
+                                    <td>100G</td>
+                                    <td><span class="metric {get_metric_class(tcp_seq, 80, 50)}">{tcp_seq:.2f} Gb/s</span></td>
+                                    <td><span class="metric {get_metric_class(tcp_par, 80, 50)}">{tcp_par:.2f} Gb/s</span></td>
+                                </tr>"""
+
+            # Add aggregate row for source
+            if is_source and tcp_rows:
+                tcp_rows += f"""
+                                <tr style="background:#f0f0ff; font-weight:bold;">
+                                    <td colspan="2" style="text-align:center;">Aggregate:</td>
+                                    <td><span class="metric metric-high">{tcp_agg['tcp_seq']:.2f} Gb/s</span></td>
+                                    <td><span class="metric metric-medium">{tcp_agg['tcp_par']:.2f} Gb/s</span></td>
+                                </tr>"""
+
+            tcp_table = f"""
+                    <h3 style="margin-top: 25px; color: #667eea;">🌐 TCP Performance</h3>
+                    <p style="color: #666; font-size: 0.9em; margin-bottom: 10px;">Direction: {direction}</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>NIC</th>
+                                <th>Link</th>
+                                <th>TCP Sequential</th>
+                                <th>TCP Parallel</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+    {tcp_rows}
+                        </tbody>
+                    </table>
+                    <p style="margin-top:10px; color:#666; font-size:0.85em">
+                        Sequential = one NIC at a time | Parallel = all NICs simultaneously
+                    </p>""" if tcp_rows else ""
+
+            nccl_table = get_worker_nccl(worker)
+
+            return f"""<div class="section">
+                    <h2>📊 {worker}</h2>
+    {rdma_table}
+    {tcp_table}
+    {nccl_table}
+                </div>"""
+
+        # Generate sections for both workers
+        return generate_worker_section(worker1, True) + generate_worker_section(worker2, False)
+
+
     def generate_rdma_table(rdma_results, rdma_agg, worker1, worker2, nics):
         """Generate RDMA performance table"""
     
